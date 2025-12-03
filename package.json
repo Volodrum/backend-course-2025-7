@@ -5,7 +5,7 @@
   "main": "main.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "dev": "nodemon -L main.js -H 0.0.0.0 -p 3000 -c ./cache"
+    "dev": "nodemon -L --inspect=0.0.0.0:9229 main.js -H 0.0.0.0 -p 3000 -c ./cache"
   },
   "repository": {
     "type": "git",
