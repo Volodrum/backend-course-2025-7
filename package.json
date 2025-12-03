@@ -1,0 +1,33 @@
+{
+  "name": "-backend-course-2025-6",
+  "version": "1.0.0",
+  "description": "",
+  "main": "main.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "dev": "nodemon main.js -h localhost -p 3000 -c ./cache"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Volodrum/-backend-course-2025-6.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/Volodrum/-backend-course-2025-6/issues"
+  },
+  "homepage": "https://github.com/Volodrum/-backend-course-2025-6#readme",
+  "dependencies": {
+    "commander": "^14.0.2",
+    "express": "^5.1.0",
+    "formidable": "^3.5.4",
+    "superagent": "^10.2.3",
+    "swagger-jsdoc": "^6.2.8",
+    "swagger-ui-express": "^5.0.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.11"
+  }
+}

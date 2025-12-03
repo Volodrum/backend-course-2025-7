@@ -1,0 +1,219 @@
+{
+	"info": {
+		"name": "Backend Course API (Auto Tests)",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "1. Register Item (Sets ID)",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"// 1. Перевіряємо статус 201 Created",
+							"pm.test(\"Status code is 201\", function () {",
+							"    pm.response.to.have.status(201);",
+							"});",
+							"",
+							"// 2. Витягуємо ID з тексту відповіді (Created! ID: 173...)",
+							"const responseText = pm.response.text();",
+							"// Використовуємо регулярний вираз для пошуку цифр після 'ID:'",
+							"const match = responseText.match(/ID:\\s*(\\d+)/);",
+							"",
+							"if (match && match[1]) {",
+							"    // Зберігаємо ID у змінну колекції",
+							"    pm.collectionVariables.set(\"itemId\", match[1]);",
+							"    console.log(\"Saved Item ID: \" + match[1]);",
+							"} else {",
+							"    console.error(\"Could not find ID in response\");",
+							"}"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "formdata",
+					"formdata": [
+						{ "key": "inventory_name", "value": "Test Laptop", "type": "text" },
+						{ "key": "description", "value": "Auto-test description", "type": "text" },
+						{ "key": "photo", "type": "file", "src": [] }
+					]
+				},
+				"url": "http://localhost:3000/register"
+			}
+		},
+		{
+			"name": "2. Get All Inventory",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code is 200\", function () {",
+							"    pm.response.to.have.status(200);",
+							"});",
+							"",
+							"pm.test(\"Response is an array\", function () {",
+							"    var jsonData = pm.response.json();",
+							"    pm.expect(jsonData).to.be.an(\"array\");",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": "http://localhost:3000/inventory"
+			}
+		},
+		{
+			"name": "3. Search Item (Using Variable)",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code is 200\", function () {",
+							"    pm.response.to.have.status(200);",
+							"});",
+							"",
+							"pm.test(\"Returned correct item ID\", function () {",
+							"    var jsonData = pm.response.json();",
+							"    // Перевіряємо, чи ID у відповіді співпадає з тим, що ми створили",
+							"    pm.expect(jsonData.id).to.eql(pm.collectionVariables.get(\"itemId\"));",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "urlencoded",
+					"urlencoded": [
+						{ "key": "id", "value": "{{itemId}}", "type": "text" },
+						{ "key": "includePhoto", "value": "on", "type": "text" }
+					]
+				},
+				"url": "http://localhost:3000/search"
+			}
+		},
+		{
+			"name": "4. Get Item Details",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code is 200\", function () {",
+							"    pm.response.to.have.status(200);",
+							"});",
+							"",
+							"pm.test(\"Check Item Name\", function () {",
+							"    var jsonData = pm.response.json();",
+							"    pm.expect(jsonData.name).to.eql(\"Test Laptop\");",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": "http://localhost:3000/inventory/{{itemId}}"
+			}
+		},
+		{
+			"name": "5. Update Item",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code is 200\", function () {",
+							"    pm.response.to.have.status(200);",
+							"});",
+							"",
+							"pm.test(\"Response is Updated\", function () {",
+							"    pm.expect(pm.response.text()).to.include(\"Updated\");",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "PUT",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"name\": \"Updated Laptop\",\n    \"description\": \"Updated via Postman\"\n}",
+					"options": { "raw": { "language": "json" } }
+				},
+				"url": "http://localhost:3000/inventory/{{itemId}}"
+			}
+		},
+		{
+			"name": "6. Delete Item",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code is 200\", function () {",
+							"    pm.response.to.have.status(200);",
+							"});",
+							"",
+							"pm.test(\"Response is Deleted\", function () {",
+							"    pm.expect(pm.response.text()).to.include(\"Deleted\");",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "DELETE",
+				"header": [],
+				"url": "http://localhost:3000/inventory/{{itemId}}"
+			}
+		},
+		{
+			"name": "7. Verify Deletion (Expect 404)",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code is 404\", function () {",
+							"    pm.response.to.have.status(404);",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": "http://localhost:3000/inventory/{{itemId}}"
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "itemId",
+			"value": ""
+		}
+	]
+}
