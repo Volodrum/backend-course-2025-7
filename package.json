@@ -21,6 +21,7 @@
   "homepage": "https://github.com/Volodrum/-backend-course-2025-6#readme",
   "dependencies": {
     "commander": "^14.0.2",
+    "dotenv": "^17.2.3",
     "express": "^5.1.0",
     "formidable": "^3.5.4",
     "superagent": "^10.2.3",

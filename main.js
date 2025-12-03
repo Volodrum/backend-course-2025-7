@@ -1,3 +1,5 @@
+require('dotenv').config();
+
 const { program } = require('commander');
 const express = require('express'); // Підключаємо Express
 const fs = require('fs');

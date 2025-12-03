@@ -1,0 +1,29 @@
+services:
+  app:
+    build: .
+    ports:
+      - "${PORT:-3000}:${PORT:-3000}" # Прокидаємо порт з .env або 3000 за замовчуванням
+    volumes:
+      - .:/app               # Монтуємо поточну папку, щоб nodemon бачив зміни
+      - /app/node_modules    # Ігноруємо локальні модулі, використовуємо ті, що в контейнері
+    env_file:
+      - .env                 # Підтягуємо змінні для app
+    depends_on:
+      - db
+    command: npm run dev     # Явно вказуємо запуск через nodemon
+
+  db:
+    image: postgres:15-alpine
+    restart: always
+    environment:
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME}
+    ports:
+      - "5435:5432"          # Доступ до БД з хост-машини (для перевірки)
+    volumes:
+      - pgdata:/var/lib/postgresql/data  # Збереження даних при перезапуску
+      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql # Скрипт ініціалізації
+
+volumes:
+  pgdata:
