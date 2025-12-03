@@ -1,61 +1,60 @@
 require('dotenv').config();
 
 const { program } = require('commander');
-const express = require('express'); // Підключаємо Express
+const express = require('express');
 const fs = require('fs');
 const path = require('path');
 const formidable = require('formidable');
 const swaggerJsdoc = require('swagger-jsdoc');
-const swaggerUi = require('swagger-ui-express'); // UI для документації
+const swaggerUi = require('swagger-ui-express');
+const { Pool } = require('pg'); // 1. Підключаємо клієнт для PostgreSQL
 
-// --- 1. Налаштування Commander ---
+// --- Налаштування Commander ---
 program
-  .requiredOption('-H, --host <address>', 'Адреса сервера')
-  .requiredOption('-p, --port <number>', 'Порт сервера')
-  .requiredOption('-c, --cache <path>', 'Шлях до директорії з кешем');
+  .option('-H, --host <address>', 'Адреса сервера', process.env.HOST || '0.0.0.0')
+  .option('-p, --port <number>', 'Порт сервера', process.env.PORT || '3000')
+  .option('-c, --cache <path>', 'Шлях до директорії з кешем', process.env.CACHE_PATH || './cache');
 
 program.parse(process.argv);
 const options = program.opts();
 
-// --- Підготовка кешу ---
+// --- Підготовка папки для фото ---
 const cachePath = path.resolve(options.cache);
 if (!fs.existsSync(cachePath)) {
   fs.mkdirSync(cachePath, { recursive: true });
 }
-const dbFile = path.join(cachePath, 'inventory.json');
 
-// --- База даних ---
-function readDb() {
-  if (!fs.existsSync(dbFile)) return [];
-  const data = fs.readFileSync(dbFile, 'utf8');
-  return data ? JSON.parse(data) : [];
-}
+// --- 2. Налаштування з'єднання з БД ---
+const pool = new Pool({
+  user: process.env.DB_USER,
+  host: process.env.DB_HOST,
+  database: process.env.DB_NAME,
+  password: process.env.DB_PASSWORD,
+  port: process.env.DB_PORT,
+});
 
-function writeDb(data) {
-  fs.writeFileSync(dbFile, JSON.stringify(data, null, 2));
-}
+// Перевірка з'єднання при старті
+pool.query('SELECT NOW()', (err, res) => {
+  if (err) {
+    console.error('Помилка підключення до БД:', err);
+  } else {
+    console.log('Успішне підключення до БД PostgreSQL');
+  }
+});
 
-// --- 4. Налаштування Express ---
 const app = express();
-
-// Middleware для парсингу JSON та URL-encoded даних (замість ручного збору chunk'ів)
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// --- 5. Налаштування Swagger ---
+// --- Swagger (без змін) ---
 const swaggerDocument = {
   openapi: '3.0.0',
   info: {
     title: 'Inventory API',
     version: '1.0.0',
-    description: 'API для управління інвентаризацією (Express Version)',
+    description: 'API для управління інвентаризацією (PostgreSQL Version)',
   },
-  servers: [
-    { 
-      url: `http://localhost:${options.port}`, 
-      description: 'Local server' 
-    }
-  ],
+  servers: [{ url: `http://localhost:${options.port}`, description: 'Local server' }],
   paths: {
     '/inventory': {
       get: {
@@ -106,31 +105,31 @@ const swaggerDocument = {
       }
     },
     '/inventory/{id}': {
-      get: {
-        summary: 'Отримати деталі речі',
-        parameters: [{ in: 'path', name: 'id', required: true, schema: { type: 'string' } }],
-        responses: { 200: { description: 'Деталі речі' } }
-      },
-      put: {
-        summary: 'Оновити річ',
-        parameters: [{ in: 'path', name: 'id', required: true, schema: { type: 'string' } }],
-        requestBody: {
-          content: {
-            'application/json': {
-              schema: {
-                type: 'object',
-                properties: { name: { type: 'string' }, description: { type: 'string' } }
-              }
-            }
-          }
+        get: {
+            summary: 'Отримати деталі речі',
+            parameters: [{ in: 'path', name: 'id', required: true, schema: { type: 'string' } }],
+            responses: { 200: { description: 'Деталі речі' } }
         },
-        responses: { 200: { description: 'Оновлено' } }
-      },
-      delete: {
-        summary: 'Видалити річ',
-        parameters: [{ in: 'path', name: 'id', required: true, schema: { type: 'string' } }],
-        responses: { 200: { description: 'Видалено' } }
-      }
+        put: {
+            summary: 'Оновити річ',
+            parameters: [{ in: 'path', name: 'id', required: true, schema: { type: 'string' } }],
+            requestBody: {
+                content: {
+                    'application/json': {
+                        schema: {
+                            type: 'object',
+                            properties: { name: { type: 'string' }, description: { type: 'string' } }
+                        }
+                    }
+                }
+            },
+            responses: { 200: { description: 'Оновлено' } }
+        },
+        delete: {
+            summary: 'Видалити річ',
+            parameters: [{ in: 'path', name: 'id', required: true, schema: { type: 'string' } }],
+            responses: { 200: { description: 'Видалено' } }
+        }
     },
     '/inventory/{id}/photo': {
       get: {
@@ -142,32 +141,26 @@ const swaggerDocument = {
   }
 };
 
-const swaggerSpec = swaggerJsdoc({
-  definition: swaggerDocument,
-  apis: [],
-});
-
-// Підключаємо Swagger UI за адресою /docs
+const swaggerSpec = swaggerJsdoc({ definition: swaggerDocument, apis: [] });
 app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
 // --- Маршрути (Routes) ---
 
-// Статичні файли (форми)
-app.get('/RegisterForm.html', (req, res) => {
-  res.sendFile(path.join(__dirname, 'RegisterForm.html'));
+app.get('/RegisterForm.html', (req, res) => res.sendFile(path.join(__dirname, 'RegisterForm.html')));
+app.get('/SearchForm.html', (req, res) => res.sendFile(path.join(__dirname, 'SearchForm.html')));
+
+// GET /inventory - Отримати всі записи з БД
+app.get('/inventory', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM items ORDER BY id ASC');
+    res.json(result.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).send('Database Error');
+  }
 });
 
-app.get('/SearchForm.html', (req, res) => {
-  res.sendFile(path.join(__dirname, 'SearchForm.html'));
-});
-
-// GET /inventory
-app.get('/inventory', (req, res) => {
-  const items = readDb();
-  res.json(items);
-});
-
-// POST /register (Multipart/form-data)
+// POST /register
 app.post('/register', (req, res, next) => {
   const form = new formidable.IncomingForm({
     uploadDir: cachePath,
@@ -176,10 +169,9 @@ app.post('/register', (req, res, next) => {
     minFileSize: 0
   });
 
-  form.parse(req, (err, fields, files) => {
-    if (err) {
-        return next(err); // Передаємо помилку Express
-    }
+  form.parse(req, async (err, fields, files) => {
+    if (err) return next(err);
+
     const name = Array.isArray(fields.inventory_name) ? fields.inventory_name[0] : fields.inventory_name;
     const description = Array.isArray(fields.description) ? fields.description[0] : fields.description;
     const photoFile = files.photo ? (Array.isArray(files.photo) ? files.photo[0] : files.photo) : null;
@@ -189,100 +181,116 @@ app.post('/register', (req, res, next) => {
     let photoName = null;
     if (photoFile && photoFile.size > 0) {
         photoName = path.basename(photoFile.filepath);
-    } else {
-        // Якщо файл пустий (розмір 0), видаляємо створений пустий temp-файл
-        if (photoFile) {
-            try { fs.unlinkSync(photoFile.filepath); } catch(e) {}
-        }
+    } else if (photoFile) {
+        try { fs.unlinkSync(photoFile.filepath); } catch(e) {}
     }
 
-    const items = readDb();
-    const newItem = {
-      id: Date.now().toString(),
-      name: name,
-      description: description || '',
-      photo: photoName
-    };
-
-    items.push(newItem);
-    writeDb(items);
-    res.status(201).send(`Created! ID: ${newItem.id}`);
+    try {
+      // INSERT запит до БД
+      const query = 'INSERT INTO items (name, description, photo) VALUES ($1, $2, $3) RETURNING *';
+      const values = [name, description || '', photoName];
+      const result = await pool.query(query, values);
+      
+      const newItem = result.rows[0];
+      res.status(201).send(`Created! ID: ${newItem.id}`);
+    } catch (dbErr) {
+      console.error(dbErr);
+      res.status(500).send('Database Error');
+    }
   });
 });
 
-// POST /search (x-www-form-urlencoded)
-app.post('/search', (req, res) => {
-  // Express автоматично розпарсив тіло в req.body завдяки app.use(express.urlencoded)
+// POST /search
+app.post('/search', async (req, res) => {
   const { id, includePhoto } = req.body;
   const showPhoto = includePhoto === 'on';
 
-  const items = readDb();
-  const item = items.find(i => i.id === id);
-
-  if (item) {
-    const responseData = { ...item };
-
-    if (!showPhoto) {
-      delete responseData.photo;
+  try {
+    // Пошук за ID в БД
+    const result = await pool.query('SELECT * FROM items WHERE id = $1', [id]);
+    
+    if (result.rows.length > 0) {
+      const item = { ...result.rows[0] };
+      if (!showPhoto) {
+        delete item.photo;
+      }
+      res.json(item);
+    } else {
+      res.status(404).send('Not Found');
     }
-    res.json(responseData);
-  } else {
-    res.status(404).send('Not Found');
+  } catch (err) {
+    // Якщо id не є числом (Postgres викине помилку для integer поля), повертаємо 404
+    res.status(404).send('Not Found or Invalid ID');
   }
 });
 
 // Робота з ID (/inventory/:id)
 app.route('/inventory/:id')
-  .get((req, res) => {
-    const items = readDb();
-    const item = items.find(i => i.id === req.params.id);
-    if (item) res.json(item);
-    else res.status(404).send('Not Found');
+  .get(async (req, res) => {
+    try {
+      const result = await pool.query('SELECT * FROM items WHERE id = $1', [req.params.id]);
+      if (result.rows.length > 0) res.json(result.rows[0]);
+      else res.status(404).send('Not Found');
+    } catch (err) { res.status(500).send('Server Error'); }
   })
-  .put((req, res) => {
-    const items = readDb();
-    const index = items.findIndex(i => i.id === req.params.id);
-    if (index === -1) return res.status(404).send('Not Found');
-
-    // Express автоматично розпарсив JSON в req.body
-    const updates = req.body;
-    if (updates.name) items[index].name = updates.name;
-    if (updates.description) items[index].description = updates.description;
-    
-    writeDb(items);
-    res.send('Updated');
+  .put(async (req, res) => {
+    try {
+      const { name, description } = req.body;
+      // UPDATE запит (оновлюємо тільки якщо передані нові значення, інакше залишаємо старі - COALESCE)
+      // Але для простоти зробимо два кроки або простий UPDATE
+      const query = `
+        UPDATE items 
+        SET name = COALESCE($1, name), description = COALESCE($2, description) 
+        WHERE id = $3 
+        RETURNING *`;
+      const result = await pool.query(query, [name, description, req.params.id]);
+      
+      if (result.rows.length > 0) res.send('Updated');
+      else res.status(404).send('Not Found');
+    } catch (err) { res.status(500).send('Server Error'); }
   })
-  .delete((req, res) => {
-    const items = readDb();
-    const index = items.findIndex(i => i.id === req.params.id);
-    if (index === -1) return res.status(404).send('Not Found');
+  .delete(async (req, res) => {
+    try {
+        // Спочатку отримаємо ім'я файлу, щоб видалити його з диска
+        const findResult = await pool.query('SELECT photo FROM items WHERE id = $1', [req.params.id]);
+        
+        if (findResult.rows.length === 0) return res.status(404).send('Not Found');
 
-    if (items[index].photo) {
-      try { fs.unlinkSync(path.join(cachePath, items[index].photo)); } catch(e){}
+        const photoName = findResult.rows[0].photo;
+        
+        // Видаляємо запис з БД
+        await pool.query('DELETE FROM items WHERE id = $1', [req.params.id]);
+
+        // Видаляємо файл з диска (якщо він був)
+        if (photoName) {
+            try { fs.unlinkSync(path.join(cachePath, photoName)); } catch(e){}
+        }
+        
+        res.send('Deleted');
+    } catch (err) { 
+        console.error(err);
+        res.status(500).send('Server Error'); 
     }
-    items.splice(index, 1);
-    writeDb(items);
-    res.send('Deleted');
   });
 
 // Фото (/inventory/:id/photo)
-app.get('/inventory/:id/photo', (req, res) => {
-  const items = readDb();
-  const item = items.find(i => i.id === req.params.id);
-  
-  if (item && item.photo) {
-    const photoPath = path.join(cachePath, item.photo);
-    if (fs.existsSync(photoPath)) {
-      res.sendFile(photoPath); // Express має зручний метод sendFile
+app.get('/inventory/:id/photo', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT photo FROM items WHERE id = $1', [req.params.id]);
+    
+    if (result.rows.length > 0 && result.rows[0].photo) {
+      const photoPath = path.join(cachePath, result.rows[0].photo);
+      if (fs.existsSync(photoPath)) {
+        res.sendFile(photoPath);
+      } else {
+        res.status(404).send('File missing on disk');
+      }
     } else {
-      res.status(404).send('File missing');
+      res.status(404).send('No photo in DB');
     }
-  } else {
-    res.status(404).send('No photo');
-  }
+  } catch (err) { res.status(500).send('Error'); }
 });
 
-// Запуск сервера
 app.listen(options.port, options.host, () => {
   console.log(`Express Server running at http://${options.host}:${options.port}`);
   console.log(`Docs available at http://${options.host}:${options.port}/docs`);
